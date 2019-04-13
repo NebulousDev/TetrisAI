@@ -40,6 +40,17 @@ def getInput():
 
     return None
 
+# Clear the console window
+def clear():
+
+    # Windows platform
+    if WINDOWS:
+        os.system("cls")
+
+    # Unix Platform
+    else:
+        os.system("clear")
+
 # Sets the console cursor position to the given x, y value
 # Code sourced from https://stackoverflow.com/questions/27612545/how-to-change-the-location-of-the-pointer-in-python
 def setCursor(x, y):

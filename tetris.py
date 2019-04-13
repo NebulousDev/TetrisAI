@@ -1,7 +1,7 @@
 import time
 import random
 
-from util import setCursor
+from util import setCursor, clear
 from player import Player
 from players.userPlayer import UserPlayer
 
@@ -9,7 +9,6 @@ from players.userPlayer import UserPlayer
 
 # Global piece groups
 TETRIS_PIECES       = "pieces/tetronimos.csv"
-PENTRIS_PIECES      = "pieces/pentominos.csv"
 
 # Global print symbols:
 SYMBOL_WIDTH_MOD    = 2
@@ -23,6 +22,7 @@ SYMBOL_UP_LEFT      = '┌'
 SYMBOL_UP_RIGHT     = '┐'
 SYMBOL_BOTTOM_LEFT  = '└'
 SYMBOL_BOTTOM_RIGHT = '┘'
+
 
 
 # Load pieces from CSV path
@@ -393,8 +393,24 @@ class Tetris:
 ###########################################################################################################
 
 
+def choosePlayer():
+    
+    clear()
+    setCursor(0, 0)
+    
+    print("\n Players: \n")
+    print("\t1. User Player ")
+
+    playerId = input("\n Choose a player: ")
+    
+    if(playerId == '1'):
+        return UserPlayer()
+    
+    else:
+        return choosePlayer()
+
 
 if __name__ == "__main__":
-    player = UserPlayer()
+    player = choosePlayer()
     game = Tetris(10, 20, player, TETRIS_PIECES, 5)
     game.run()
