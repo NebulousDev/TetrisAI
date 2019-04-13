@@ -1,21 +1,60 @@
 import time
 import random
-import signal
-import sys
-import os
-import platform
 
-try: 
-    import msvcrt
-except ImportError: 
-    pass
+from util import setCursor
+from player import Player
+from players.userPlayer import UserPlayer
 
-try:
-    import select
-    import tty
-    import termios
-except ImportError: 
-    pass
+
+
+# Global piece groups
+TETRIS_PIECES       = "pieces/tetronimos.csv"
+PENTRIS_PIECES      = "pieces/pentominos.csv"
+
+# Global print symbols:
+SYMBOL_WIDTH_MOD    = 2
+SYMBOL_ACTIVE       = '█' * SYMBOL_WIDTH_MOD
+SYMBOL_BLANK        = ' ' * SYMBOL_WIDTH_MOD
+SYMBOL_LEFT         = '│'
+SYMBOL_RIGHT        = '│'
+SYMBOL_TOP          = '─' * SYMBOL_WIDTH_MOD
+SYMBOL_BOTTOM       = '─' * SYMBOL_WIDTH_MOD
+SYMBOL_UP_LEFT      = '┌'
+SYMBOL_UP_RIGHT     = '┐'
+SYMBOL_BOTTOM_LEFT  = '└'
+SYMBOL_BOTTOM_RIGHT = '┘'
+
+
+# Load pieces from CSV path
+def loadPieces(pieces):
+
+    csv = open(pieces, encoding='utf-8')
+    values = csv.read().replace('\n', '').split(',')
+    pieces = list()
+
+    while len(values) > 1:
+        values.pop(0) # Pop unused name
+        typeId  = int(values.pop(0))
+        height  = int(values.pop(0))
+        width   = int(values.pop(0))
+        symbol  = values.pop(0)
+
+        shapes  = list()
+
+        for _ in range(height):
+            shape = list()
+            for _ in range(width):
+                shape.append(values.pop(0))
+            shapes.append(shape)
+
+        piece = Piece(typeId, symbol, shapes)
+        pieces.append(piece)
+
+    csv.close()
+
+    return pieces
+
+
 
 # Tetris game piece
 class Piece:
@@ -54,80 +93,7 @@ class Piece:
         self.width = self.height
         self.height = temp
 
-# Tetronimos
 
-# Note: Rotation's based on SRS guidelines:
-# https://tetris.fandom.com/wiki/SRS
-
-class TetrominoI(Piece): 
-     def __init__(self): 
-         super(TetrominoI, self).__init__(0, '▓', [
-            ["    ", "####", "    ", "    "],
-            ["  # ", "  # ", "  # ", "  # "],
-            ["    ", "    ", "####", "    "],
-            [" #  ", " #  ", " #  ", " #  "]])
-
-class TetrominoJ(Piece): 
-     def __init__(self): 
-         super(TetrominoJ, self).__init__(1, '▒', [
-            ["#  ", "###", "   "],
-            [" ##", " # ", " # "],
-            ["   ", "###", "  #"],
-            [" # ", " # ", "## "]])
-
-class TetrominoL(Piece): 
-     def __init__(self): 
-         super(TetrominoL, self).__init__(2, '░', [
-            ["  #", "###", "   "],
-            [" # ", " # ", " ##"],
-            ["   ", "###", "#  "],
-            ["## ", " # ", " # "]])
-
-class TetrominoO(Piece): 
-     def __init__(self): 
-         super(TetrominoO, self).__init__(3, '█', [
-            [" ## " , " ## ", "    "],
-            [" ## " , " ## ", "    "],
-            [" ## " , " ## ", "    "],
-            [" ## " , " ## ", "    "]])
-
-class TetrominoS(Piece): 
-     def __init__(self): 
-         super(TetrominoS, self).__init__(4, '&', [
-            [" ##", "## ", "   "],
-            [" # ", " ##", "  #"],
-            ["   ", " ##", "## "],
-            ["#  ", "## ", " # "]])
-
-class TetrominoT(Piece): 
-     def __init__(self): 
-         super(TetrominoT, self).__init__(5, '#', [
-            [" # ", "###", "   "],
-            [" # ", " ##", " # "],
-            ["   ", "###", " # "],
-            [" # ", "## ", " # "]])
-
-class TetrominoZ(Piece): 
-     def __init__(self): 
-         super(TetrominoZ, self).__init__(6, '@', [
-            ["## ", " ##", "   "],
-            ["  #", " ##", " # "],
-            ["   ", "## ", " ##"],
-            [" # ", "## ", "#  "]])
-
-# Global print symbols:
-
-symbolWidthMod     = 2
-symbolActive       = '█' * symbolWidthMod
-symbolBlank        = ' ' * symbolWidthMod
-symbolLeft         = '│'
-symbolRight        = '│'
-symbolTop          = '─' * symbolWidthMod
-symbolBottom       = '─' * symbolWidthMod
-symbolUpLeft       = '┌'
-symbolUpRight      = '┐'
-symbolBottomLeft   = '└'
-symbolBottomRight  = '┘'
 
 # Tetris game board
 class Board:
@@ -301,11 +267,8 @@ class Board:
             self.piece = None
             
         # Check for row clears
-
         rowsCleared = 0
-
         if self.piece is None:
-            print("CHECK CLEAR")
             for i in range(self.height):
                 if self.isRowFull(i):
                     self.dropAbove(i)
@@ -326,48 +289,24 @@ class Board:
 
     # Print the board
     def print(self):
-        result = symbolUpLeft + symbolTop * self.width + symbolUpRight + '\n'
+        result = SYMBOL_UP_LEFT + SYMBOL_TOP * self.width + SYMBOL_UP_RIGHT + '\n'
         for y in range(self.height):
-            result = result + symbolLeft
+            result = result + SYMBOL_LEFT
             for x in range(self.width):
-                result = result + (symbolBlank if self.get(x,y) is None else self.get(x,y).symbol * 2)
-            result = result + symbolRight + '\n'
-        result = result + symbolBottomLeft + symbolTop * self.width + symbolBottomRight
+                result = result + (SYMBOL_BLANK if self.get(x,y) is None else self.get(x,y).symbol * 2)
+            result = result + SYMBOL_RIGHT + '\n'
+        result = result + SYMBOL_BOTTOM_LEFT + SYMBOL_TOP * self.width + SYMBOL_BOTTOM_RIGHT
         print(result)
 
-# The Player class
-# Player logic should be implemented in child classes
-class Player:
 
-    NO_ACTION   = 0
-    DROP_NOW    = 1
-    MOVE_LEFT   = 2
-    MOVE_RIGHT  = 3
-    ROTATE      = 4
-    QUIT        = 5
-
-    # Player chooses their next move
-    # Can return one of the following:
-    # - NO_ACTION : nothing happens
-    # - DROP_NOW : immediately drops the active piece to it's final position
-    # - MOVE_LEFT : moves the active piece left one block
-    # - MOVE_RIGHT : moves the active piece right one block
-    # - ROTATE : rotate the active piece clockwise
-    # - QUIT : forfit the game
-    def nextMove(self, tetris, board):
-        pass
-
-# Debuging:
-
-debugSleep = True
-debugSpeed = 20
 
 # Tetris game state
 class Tetris:
 
-    def __init__(self, width, height, player, speed):
+    def __init__(self, width, height, player, pieces, speed):
 
         self.player     = player                # Active player
+        self.pieces     = loadPieces(pieces)    # Load the pieces from CSV
         self.board      = Board(width, height)  # The active game board
         self.score      = 0                     # The current player score
         self.nextPiece  = None                  # The next piece to be played
@@ -379,26 +318,19 @@ class Tetris:
 
     # Return a new random piece
     def genNextPiece(self):
-        num = random.randint(0, 6)
-        if   num == 0: return TetrominoI()
-        elif num == 1: return TetrominoJ()
-        elif num == 2: return TetrominoL()
-        elif num == 3: return TetrominoO()
-        elif num == 4: return TetrominoS()
-        elif num == 5: return TetrominoT()
-        elif num == 6: return TetrominoZ()
+        return random.choice(self.pieces)
 
     # Run the game
     def run(self):
 
+        # Reset cursor position
+        setCursor(0, 0)
+        # Print score
         self.print()
+        # Get next piece
         self.nextPiece = self.genNextPiece()
 
         while True:
-
-            # Force sleep for debugging
-            if debugSleep:
-                time.sleep(1 / debugSpeed)
 
             # Get next drop time
             nextTime = self.getTime() + ((1 / self.gameSpeed) * 1000)
@@ -444,76 +376,25 @@ class Tetris:
 
     # Print the board and stats
     def print(self):
+        setCursor(0, 0)
         titleStr = " [" + str(self.board.width) + ", " + str(self.board.height) + "] Tetris:"
         scoreStr = " Score: " + str(self.score)
-        result = symbolUpLeft + symbolTop * self.board.width + symbolUpRight + '\n'
-        result = result + symbolLeft + titleStr + \
-            (' ' * (self.board.width * symbolWidthMod - len(titleStr))) + symbolRight + '\n'
-        result = result + symbolLeft + scoreStr + \
-            (' ' * (self.board.width  *symbolWidthMod - len(scoreStr))) + symbolRight + '\n'
-        result = result + symbolBottomLeft + symbolTop * self.board.width + symbolBottomRight
+        result = SYMBOL_UP_LEFT + SYMBOL_TOP * self.board.width + SYMBOL_UP_RIGHT + '\n'
+        result = result + SYMBOL_LEFT + titleStr + \
+            (' ' * (self.board.width * SYMBOL_WIDTH_MOD - len(titleStr))) + SYMBOL_RIGHT + '\n'
+        result = result + SYMBOL_LEFT + scoreStr + \
+            (' ' * (self.board.width  *SYMBOL_WIDTH_MOD - len(scoreStr))) + SYMBOL_RIGHT + '\n'
+        result = result + SYMBOL_BOTTOM_LEFT + SYMBOL_TOP * self.board.width + SYMBOL_BOTTOM_RIGHT
         print(result)
         self.board.print()
 
 
+
 ###########################################################################################################
 
-# Non-blocking single character input
-# Code sourced from: https://stackoverflow.com/questions/2408560/python-nonblocking-console-input
-def getInput():
 
-    # Windows platform
-    if platform.system() == "Windows":
-        val = ''
-        while msvcrt.kbhit():
-            val = val + str(msvcrt.getch())
-        return val if val is not '' else None
-
-    # Unix Platform
-    else:
-        if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-            return sys.stdin.read(1)
-
-    return None
-
-# Basic user-input player
-class UserPlayer(Player):
-
-    KEY_UP      = "b'\\xe0'b'H'"
-    KEY_DOWN    = "b'\\xe0'b'P'"
-    KEY_RIGHT   = "b'\\xe0'b'M'"
-    KEY_LEFT    = "b'\\xe0'b'K'"
-
-    def nextMove(self, tetris, board):
-
-        # Get key input
-        key = getInput()
-        if key is not None:
-
-            if key == UserPlayer.KEY_LEFT:
-                return Player.MOVE_LEFT
-            
-            if key == UserPlayer.KEY_RIGHT:
-                return Player.MOVE_RIGHT
-
-            if key == UserPlayer.KEY_DOWN:
-                return Player.DROP_NOW
-
-            if key == UserPlayer.KEY_UP:
-                return Player.ROTATE
-
-        return Player.NO_ACTION
-        
-# Experemental Keybord Interrupt (only works with CTRL + C)
-def keyboardInterruptHandler(signal, frame):
-    print("Game Ended Forcefully.")
-    exit(0)
 
 if __name__ == "__main__":
-
-    # This was an experiment and will likely be removed
-    signal.signal(signal.SIGINT, keyboardInterruptHandler)
-
     player = UserPlayer()
-    game = Tetris(10, 20, player, 5)
+    game = Tetris(10, 20, player, TETRIS_PIECES, 5)
     game.run()
